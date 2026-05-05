@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports - AttendanceAI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-user-check"></i>
+                <span>AttendanceAI</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                <li><a href="{{ url_for('register') }}">Register</a></li>
+                <li><a href="{{ url_for('attendance') }}">Attendance</a></li>
+                <li><a href="{{ url_for('reports') }}" class="active">Reports</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container reports-container">
+        <h1><i class="fas fa-chart-bar"></i> Attendance Reports</h1>
+        
+        <div class="filters-section">
+            <form method="GET" class="filters-form">
+                <div class="filter-group">
+                    <label><i class="fas fa-calendar"></i> Start Date</label>
+                    <input type="date" name="start_date" value="{{ request.args.get('start_date', '') }}">
+                </div>
+                
+                <div class="filter-group">
+                    <label><i class="fas fa-calendar"></i> End Date</label>
+                    <input type="date" name="end_date" value="{{ request.args.get('end_date', '') }}">
+                </div>
+                
+                <div class="filter-group">
+                    <label><i class="fas fa-user"></i> User</label>
+                    <select name="user_id">
+                        <option value="">All Users</option>
+                        {% for user in users %}
+                        <option value="{{ user.id }}" 
+                                {% if request.args.get('user_id') == user.id|string %}selected{% endif %}>
+                            {{ user.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-filter"></i> Apply Filters
+                </button>
+            </form>
+        </div>
+
+        <div class="reports-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Employee ID</th>
+                        <th>Name</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Status</th>
+                        <th>Confidence</th>
+                        <th>Location</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in attendance_records %}
+                    <tr>
+                        <td>{{ record.user.employee_id }}</td>
+                        <td>{{ record.user.name }}</td>
+                        <td>{{ record.timestamp.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ record.timestamp.strftime('%I:%M %p') }}</td>
+                        <td>
+                            <span class="status-badge status-{{ record.status }}">
+                                {{ record.status.capitalize() }}
+                            </span>
+                        </td>
+                        <td>{{ (record.confidence * 100) | round(1) }}%</td>
+                        <td>{{ record.location }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            {% if attendance_records|length == 0 %}
+            <p class="no-records">No attendance records found</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

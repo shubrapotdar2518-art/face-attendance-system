@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mark Attendance - AttendanceAI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-user-check"></i>
+                <span>AttendanceAI</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                <li><a href="{{ url_for('register') }}">Register</a></li>
+                <li><a href="{{ url_for('attendance') }}" class="active">Attendance</a></li>
+                <li><a href="{{ url_for('reports') }}">Reports</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container attendance-container">
+        <h1><i class="fas fa-camera"></i> Mark Attendance</h1>
+        
+        <div class="attendance-grid">
+            <div class="camera-section">
+                <div class="camera-container">
+                    <img id="cameraFeed" src="" alt="Camera Feed">
+                    <div id="cameraStatus" class="camera-status">
+                        <i class="fas fa-video-slash"></i>
+                        <p>Camera Inactive</p>
+                    </div>
+                </div>
+                
+                <div class="camera-controls">
+                    <button id="startCamera" class="btn btn-primary">
+                        <i class="fas fa-play"></i> Start Camera
+                    </button>
+                    <button id="stopCamera" class="btn btn-secondary" disabled>
+                        <i class="fas fa-stop"></i> Stop Camera
+                    </button>
+                </div>
+            </div>
+
+            <div class="detection-section">
+                <h2><i class="fas fa-users"></i> Detected Faces</h2>
+                <div id="detectedFaces" class="detected-faces">
+                    <p class="no-faces">No faces detected yet</p>
+                </div>
+                
+                <h2><i class="fas fa-clock"></i> Today's Attendance</h2>
+                <div id="todayAttendance" class="today-attendance"></div>
+            </div>
+        </div>
+    </div>
+
+        <div id="notification" class="notification"></div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        // Create socket for attendance page
+        const socket = io({
+            reconnection: true,
+            reconnectionDelay: 1000
+        });
+        
+        let cameraActive = false;
+        let processingInterval;
+
+        const startCameraBtn = document.getElementById('startCamera');
+        const stopCameraBtn = document.getElementById('stopCamera');
+        const cameraFeed = document.getElementById('cameraFeed');
+        const cameraStatus = document.getElementById('cameraStatus');
+        const detectedFaces = document.getElementById('detectedFaces');
+
+        socket.on('connect', () => {
+            console.log('✓ Connected to server');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('✗ Disconnected from server');
+        });
+
+        startCameraBtn.addEventListener('click', () => {
+            console.log('Starting camera...');
+            socket.emit('start_camera');
+        });
+
+        socket.on('camera_started', (data) => {
+            console.log('Camera started:', data);
+            
+            if (data.success) {
+                cameraActive = true;
+                startCameraBtn.disabled = true;
+                stopCameraBtn.disabled = false;
+                cameraStatus.style.display = 'none';
+                
+                processingInterval = setInterval(() => {
+                    if (cameraActive) {
+                        socket.emit('process_frame', {});
+                    }
+                }, 100);
+            } else {
+                showNotification('Failed to start camera: ' + (data.error || 'Unknown error'), 'error');
+            }
+        });
+
+        stopCameraBtn.addEventListener('click', () => {
+            socket.emit('stop_camera');
+            cameraActive = false;
+            startCameraBtn.disabled = false;
+            stopCameraBtn.disabled = true;
+            cameraStatus.style.display = 'flex';
+            cameraFeed.src = '';
+            clearInterval(processingInterval);
+        });
+
+        socket.on('camera_stopped', (data) => {
+            console.log('Camera stopped');
+        });
+
+        socket.on('frame_processed', (data) => {
+            cameraFeed.src = 'data:image/jpeg;base64,' + data.frame;
+            
+            if (data.faces && data.faces.length > 0) {
+                displayDetectedFaces(data.faces);
+            } else {
+                detectedFaces.innerHTML = '<p class="no-faces">No faces detected</p>';
+            }
+        });
+
+        function displayDetectedFaces(faces) {
+            detectedFaces.innerHTML = '';
+            
+            faces.forEach(face => {
+                const faceCard = document.createElement('div');
+                faceCard.className = 'face-card';
+                faceCard.innerHTML = `
+                    <div class="face-info">
+                        <i class="fas fa-user-circle"></i>
+                        <div>
+                            <h3>${face.name}</h3>
+                            <p>Confidence: ${(face.confidence * 100).toFixed(1)}%</p>
+                        </div>
+                    </div>
+                    <button onclick="markAttendance(${face.user_id}, ${face.confidence})" class="btn btn-small">
+                        <i class="fas fa-check"></i> Mark
+                    </button>
+                `;
+                detectedFaces.appendChild(faceCard);
+            });
+        }
+
+        async function markAttendance(userId, confidence) {
+            try {
+                const response = await fetch('/api/mark_attendance', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        confidence: confidence
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(result.message, 'success');
+                    loadTodayAttendance();
+                } else {
+                    showNotification(result.message, 'error');
+                }
+            } catch (error) {
+                showNotification('Error marking attendance', 'error');
+            }
+        }
+
+        async function loadTodayAttendance() {
+            try {
+                const response = await fetch('/api/attendance/today');
+                const records = await response.json();
+                
+                const container = document.getElementById('todayAttendance');
+                container.innerHTML = '';
+                
+                if (records.length === 0) {
+                    container.innerHTML = '<p class="no-records">No attendance records today</p>';
+                    return;
+                }
+                
+                records.forEach(record => {
+                    const recordCard = document.createElement('div');
+                    recordCard.className = 'attendance-record';
+                    recordCard.innerHTML = `
+                        <i class="fas fa-check-circle"></i>
+                        <div>
+                            <strong>${record.user_name}</strong>
+                            <small>${new Date(record.timestamp).toLocaleTimeString()}</small>
+                        </div>
+                        <span class="status-badge status-${record.status}">${record.status}</span>
+                    `;
+                    container.appendChild(recordCard);
+                });
+            } catch (error) {
+                console.error('Error loading attendance:', error);
+            }
+        }
+
+        loadTodayAttendance();
+        setInterval(loadTodayAttendance, 30000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - AttendanceAI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-user-check"></i>
+                <span>AttendanceAI</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('dashboard') }}" class="active">Dashboard</a></li>
+                <li><a href="{{ url_for('register') }}">Register</a></li>
+                <li><a href="{{ url_for('attendance') }}">Attendance</a></li>
+                <li><a href="{{ url_for('reports') }}">Reports</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container dashboard-container">
+        <h1>Dashboard</h1>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: #4CAF50;">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stat-details">
+                    <h3>{{ total_users }}</h3>
+                    <p>Total Users</p>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon" style="background: #2196F3;">
+                    <i class="fas fa-clipboard-check"></i>
+                </div>
+                <div class="stat-details">
+                    <h3>{{ total_attendance }}</h3>
+                    <p>Total Records</p>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon" style="background: #FF9800;">
+                    <i class="fas fa-calendar-day"></i>
+                </div>
+                <div class="stat-details">
+                    <h3>{{ today_attendance }}</h3>
+                    <p>Today's Attendance</p>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon" style="background: #9C27B0;">
+                    <i class="fas fa-percentage"></i>
+                </div>
+                <div class="stat-details">
+                    <h3>{{ ((today_attendance / total_users * 100) if total_users > 0 else 0) | round(1) }}%</h3>
+                    <p>Attendance Rate</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="recent-activity">
+            <h2><i class="fas fa-history"></i> Recent Activity</h2>
+            <div class="activity-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Employee</th>
+                            <th>Time</th>
+                            <th>Status</th>
+                            <th>Confidence</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in recent_attendance %}
+                        <tr>
+                            <td>
+                                <div class="user-info">
+                                    <i class="fas fa-user-circle"></i>
+                                    <span>{{ record.user.name }}</span>
+                                </div>
+                            </td>
+                            <td>{{ record.timestamp.strftime('%I:%M %p') }}</td>
+                            <td>
+                                <span class="status-badge status-{{ record.status }}">
+                                    {{ record.status.capitalize() }}
+                                </span>
+                            </td>
+                            <td>{{ (record.confidence * 100) | round(1) }}%</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
