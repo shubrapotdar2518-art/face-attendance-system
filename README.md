@@ -64,3 +64,12 @@ git clone https://github.com/YOUR\_USERNAME/face-attendance-system.git
 
 cd face-attendance-system
 
+
+How to run
+1. Download this project
+2. Open Command Prompt in project folder
+3. Run: python -m venv venv
+4. Run: venv\Scripts\activate
+5. Run: pip install -r requirements.txt
+6. Run: python run.py
+7. Open browser: http://localhost:5000
