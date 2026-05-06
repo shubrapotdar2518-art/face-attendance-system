@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance - Face Recognition System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-user-check"></i>
+                <span>AttendanceAI</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                <li><a href="{{ url_for('register') }}">Register</a></li>
+                <li><a href="{{ url_for('attendance_online') }}" class="active">Attendance</a></li>
+                <li><a href="{{ url_for('reports') }}">Reports</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container attendance-container">
+        <h1><i class="fas fa-camera"></i> Mark Attendance</h1>
+        
+        <div class="attendance-grid">
+            <div class="camera-section">
+                <div class="camera-container">
+                    <video id="video" autoplay playsinline></video>
+                    <canvas id="canvas" style="display:none;"></canvas>
+                    <div id="cameraStatus" class="camera-status" style="display:none;">
+                        <i class="fas fa-check-circle"></i>
+                        <p>Captured!</p>
+                    </div>
+                </div>
+                
+                <div class="camera-controls">
+                    <button id="startCamera" class="btn btn-primary">
+                        <i class="fas fa-play"></i> Start Camera
+                    </button>
+                    <button id="captureBtn" class="btn btn-secondary" disabled>
+                        <i class="fas fa-camera"></i> Capture & Mark
+                    </button>
+                </div>
+            </div>
+
+            <div class="detection-section">
+                <h2><i class="fas fa-clock"></i> Today's Attendance</h2>
+                <div id="todayAttendance" class="today-attendance"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="notification" class="notification"></div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const startBtn = document.getElementById('startCamera');
+        const captureBtn = document.getElementById('captureBtn');
+        const cameraStatus = document.getElementById('cameraStatus');
+
+        startBtn.addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                startBtn.disabled = true;
+                captureBtn.disabled = false;
+                showNotification('Camera started', 'success');
+            } catch (err) {
+                showNotification('Camera error: ' + err.message, 'error');
+            }
+        });
+
+        captureBtn.addEventListener('click', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0);
+            
+            canvas.toBlob(blob => {
+                const formData = new FormData();
+                formData.append('image', blob, 'capture.jpg');
+                
+                fetch('/api/capture_attendance', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification(data.message, 'success');
+                        cameraStatus.style.display = 'flex';
+                        setTimeout(() => cameraStatus.style.display = 'none', 2000);
+                        loadTodayAttendance();
+                    } else {
+                        showNotification(data.message, 'error');
+                    }
+                })
+                .catch(err => showNotification('Error: ' + err.message, 'error'));
+            });
+        });
+
+        async function loadTodayAttendance() {
+            try {
+                const response = await fetch('/api/attendance/today');
+                const records = await response.json();
+                
+                const container = document.getElementById('todayAttendance');
+                container.innerHTML = '';
+                
+                if (records.length === 0) {
+                    container.innerHTML = '<p class="no-records">No attendance records today</p>';
+                    return;
+                }
+                
+                records.forEach(record => {
+                    const recordCard = document.createElement('div');
+                    recordCard.className = 'attendance-record';
+                    recordCard.innerHTML = `
+                        <i class="fas fa-check-circle"></i>
+                        <div>
+                            <strong>${record.user_name}</strong>
+                            <small>${new Date(record.timestamp).toLocaleTimeString()}</small>
+                        </div>
+                        <span class="status-badge status-${record.status}">${record.status}</span>
+                    `;
+                    container.appendChild(recordCard);
+                });
+            } catch (error) {
+                console.error('Error loading attendance:', error);
+            }
+        }
+
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type} show`;
+            setTimeout(() => notification.classList.remove('show'), 3000);
+        }
+
+        loadTodayAttendance();
+        setInterval(loadTodayAttendance, 30000);
+    </script>
+</body>
+</html>

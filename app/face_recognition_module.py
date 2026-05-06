@@ -207,3 +207,22 @@ class CameraStream:
     def release(self):
         self.camera.release()
         print("Camera released")
+
+    def recognize_face_from_file(self, file_data):
+        """Recognize face from uploaded file (for client-side capture)"""
+        try:
+            # Convert file data to numpy array
+            nparr = np.frombuffer(file_data, np.uint8)
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            
+            if img is None:
+                return None, None, 0, "Could not decode image"
+            
+            # Use existing recognize_faces logic
+            face_locations, face_names, face_confidences, face_user_ids = \
+                self.recognize_faces(img)
+            
+            return face_locations, face_names, face_confidences, face_user_ids
+        except Exception as e:
+            print(f"Error recognizing face from file: {e}")
+            return None, None, 0, str(e)

@@ -317,3 +317,73 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+
+@app.route('/api/capture_attendance', methods=['POST'])
+def capture_attendance_online():
+    try:
+        if 'image' not in request.files:
+            return jsonify({'success': False, 'message': 'No image provided'})
+        
+        file = request.files['image']
+        
+        if file.filename == '':
+            return jsonify({'success': False, 'message': 'No file selected'})
+        
+        # Read image
+        file_data = file.read()
+        
+        # Recognize face
+        face_locations, face_names, face_confidences, face_user_ids = \
+            face_system.recognize_face_from_file(file_data)
+        
+        if not face_names or face_names[0] == "Unknown":
+            return jsonify({
+                'success': False,
+                'message': 'Face not recognized or no registered users found'
+            })
+        
+        # Take the first face detected
+        user_id = face_user_ids[0]
+        confidence = face_confidences[0]
+        
+        if user_id:
+            can_mark, message = face_system.capture_attendance(user_id)
+            
+            if not can_mark:
+                return jsonify({'success': False, 'message': message})
+            
+            # Determine status
+            current_hour = datetime.utcnow().hour
+            if current_hour < 9:
+                status = 'early'
+            elif current_hour <= 10:
+                status = 'present'
+            else:
+                status = 'late'
+            
+            # Record attendance
+            attendance = Attendance(
+                user_id=user_id,
+                status=status,
+                confidence=confidence,
+                location='Online'
+            )
+            db.session.add(attendance)
+            db.session.commit()
+            
+            user = User.query.get(user_id)
+            
+            return jsonify({
+                'success': True,
+                'message': f'Attendance marked for {user.name}',
+                'name': user.name
+            })
+        
+        return jsonify({'success': False, 'message': 'No face recognized'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/attendance_online')
+def attendance_online():
+    return render_template('attendance_online.html')
